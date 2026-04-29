@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-EcoGIS Live — Serveur Cloud unifié
-HTTP + WebSocket sur le MÊME port (requis par Render free tier).
-WebSocket accessible via wss://natureplusong.org/ws
-GPS fonctionne car le site est en HTTPS (certificat géré par Render).
+EcoGIS Live — Serveur Cloud v2 corrigé
+HTTP + WebSocket sur le même port (Render free tier).
 """
-import os, json, asyncio, threading, time, logging
+import os, json, threading, time, logging
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_sock import Sock   # WebSocket intégré à Flask, même port
+from flask_sock import Sock
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("ecogis")
@@ -21,26 +19,23 @@ app  = Flask(__name__)
 sock = Sock(app)
 CORS(app)
 
-# ── État global ───────────────────────────────────────────
 points_store   = []
 qgis_clients   = set()
 mobile_clients = set()
 lock           = threading.Lock()
 
-# ── Formulaire mobile ─────────────────────────────────────
 @app.route('/')
 @app.route('/form')
 def index():
     return send_from_directory('.', 'index.html')
 
-# ── API REST ──────────────────────────────────────────────
 @app.route('/api/status')
 def status():
     with lock:
         n = len(points_store)
     return jsonify({
         'status': 'ok', 'server': 'EcoGIS Live',
-        'version': '3.0', 'points': n,
+        'version': '3.1', 'points': n,
         'qgis': len(qgis_clients),
         'mobile': len(mobile_clients),
         'ts': datetime.utcnow().isoformat()
@@ -57,59 +52,69 @@ def get_points():
         pts = [p for p in pts if p.get('ts','') > since]
     return jsonify({'points': pts, 'count': len(pts)})
 
-@app.route('/api/clear', methods=['POST'])
-def clear_points():
-    if request.json.get('secret') != SECRET:
-        return jsonify({'error': 'Unauthorized'}), 401
-    with lock:
-        points_store.clear()
-    return jsonify({'ok': True})
-
-# ── WebSocket unique /ws ──────────────────────────────────
 @sock.route('/ws')
 def ws_handler(ws):
-    """
-    Connexion WebSocket unifiée (smartphones + QGIS).
-    Identification : {"type":"hello","role":"mobile"|"qgis","secret":"..."}
-    """
     role = None
     try:
-        # Identification
-        raw = ws.receive(timeout=15)
+        # Identification — timeout généreux pour Render
+        try:
+            raw = ws.receive(timeout=30)
+        except Exception:
+            return
+
         if not raw:
             return
+
         try:
             msg = json.loads(raw)
         except Exception:
             ws.send(json.dumps({"ok": False, "error": "JSON invalide"}))
             return
 
-        if msg.get('type') != 'hello' or msg.get('secret') != SECRET:
-            ws.send(json.dumps({"ok": False, "error": "Secret invalide ou message incorrect"}))
+        # Vérifier type hello
+        if msg.get('type') != 'hello':
+            ws.send(json.dumps({"ok": False, "error": "Envoyez d'abord un message hello"}))
+            return
+
+        # Vérifier secret
+        client_secret = msg.get('secret', '')
+        if client_secret != SECRET:
+            log.warning(f"[WS] Secret invalide reçu: '{client_secret}' (attendu: '{SECRET}')")
+            ws.send(json.dumps({"ok": False, "error": "Mot de passe incorrect"}))
             return
 
         role = msg.get('role', 'mobile')
         ws.send(json.dumps({
-            "ok": True, "role": role,
+            "ok": True,
+            "role": role,
             "msg": f"Connecté à EcoGIS Live ✓ ({role})"
         }))
-        log.info(f"[WS] Nouveau client: {role}")
+        log.info(f"[WS] Nouveau {role} connecté")
 
         if role == 'qgis':
             with lock:
                 qgis_clients.add(ws)
                 existing = list(points_store)
             if existing:
-                ws.send(json.dumps({"type":"bulk","points":existing,"count":len(existing)}))
+                ws.send(json.dumps({
+                    "type": "bulk",
+                    "points": existing,
+                    "count": len(existing)
+                }))
         else:
             with lock:
                 mobile_clients.add(ws)
 
-        # Boucle de lecture
+        # Boucle lecture
         while True:
-            raw = ws.receive(timeout=120)
+            try:
+                raw = ws.receive(timeout=120)
+            except Exception:
+                break
+
             if raw is None:
                 break
+
             try:
                 data = json.loads(raw)
             except Exception:
@@ -124,10 +129,9 @@ def ws_handler(ws):
                 ws.send(json.dumps({"ok": True, "id": n}))
                 log.info(f"[OBS] #{n} {data.get('species','?')} @ {data.get('lat')},{data.get('lon')}")
 
-                # Diffusion vers QGIS
                 with lock:
                     qgis_copy = set(qgis_clients)
-                payload = json.dumps({"type":"observation", **data})
+                payload = json.dumps({"type": "observation", **data})
                 dead = set()
                 for qws in qgis_copy:
                     try:
@@ -141,14 +145,14 @@ def ws_handler(ws):
             elif role == 'qgis':
                 cmd = data.get('cmd')
                 if cmd == 'ping':
-                    ws.send(json.dumps({"type":"pong","ts":time.time()}))
+                    ws.send(json.dumps({"type": "pong", "ts": time.time()}))
                 elif cmd == 'clear' and data.get('secret') == SECRET:
                     with lock:
                         points_store.clear()
-                    ws.send(json.dumps({"ok":True,"cmd":"clear"}))
+                    ws.send(json.dumps({"ok": True, "cmd": "clear"}))
 
     except Exception as e:
-        log.warning(f"[WS] Déconnexion ({role}): {e}")
+        log.warning(f"[WS] Erreur ({role}): {e}")
     finally:
         if role == 'qgis':
             with lock:
@@ -156,8 +160,8 @@ def ws_handler(ws):
         elif role == 'mobile':
             with lock:
                 mobile_clients.discard(ws)
-        log.info(f"[WS] Client déconnecté: {role}")
+        log.info(f"[WS] Déconnexion: {role}")
 
 if __name__ == '__main__':
-    log.info(f"EcoGIS Live démarrage sur port {PORT}")
+    log.info(f"EcoGIS Live v3.1 sur port {PORT} — SECRET={'*'*len(SECRET)}")
     app.run(host='0.0.0.0', port=PORT, debug=False)
