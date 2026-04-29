@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ecogis-live
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 100 --bind 0.0.0.0:$PORT ws_server:app
+    envVars:
+      - key: ECOGIS_SECRET
+        value: pendjari2026
+    plan: free

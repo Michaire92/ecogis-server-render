@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a3a2a">
+<title>EcoGIS Live · Nature Plus ONG</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--f:#1a3a2a;--m:#2d5a3e;--l:#4a8c5c;--sg:#7ab587;--pl:#b8d4c0;--cr:#f0ebe1;--tx:#1a2e20;--sf:#4a6355;--rd:#e05c5c;--am:#c4951a;}
+html,body{height:100%;background:var(--f);font-family:'DM Sans',sans-serif;color:var(--tx);overscroll-behavior:none;}
+.app{min-height:100dvh;display:flex;flex-direction:column;background:linear-gradient(160deg,#0f2218 0%,#1a3a2a 40%,#2d5a3e 100%);}
+.hdr{padding:env(safe-area-inset-top,16px) 20px 12px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.logo{width:42px;height:42px;border-radius:12px;background:rgba(74,140,92,.3);border:1.5px solid rgba(122,181,135,.4);display:flex;align-items:center;justify-content:center;font-size:22px;}
+.hdr-text h1{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:#f0ebe1;line-height:1;}
+.hdr-text .sub{font-family:'DM Mono',monospace;font-size:8px;color:var(--sg);letter-spacing:.6px;margin-top:2px;}
+.status-bar{padding:4px 20px 8px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--rd);flex-shrink:0;transition:background .3s;}
+.dot.on{background:var(--l);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,140,92,.4)}50%{box-shadow:0 0 0 5px rgba(74,140,92,0)}}
+.stxt{font-family:'DM Mono',monospace;font-size:10px;color:rgba(184,212,192,.7);}
+.card{flex:1;background:var(--cr);border-radius:22px 22px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom,16px) + 18px);overflow-y:auto;box-shadow:0 -4px 30px rgba(0,0,0,.2);}
+.card::before{content:'';display:block;width:36px;height:4px;background:rgba(74,99,85,.2);border-radius:2px;margin:0 auto 16px;}
+/* GPS */
+.gps-bloc{background:white;border-radius:14px;border:1.5px solid rgba(74,140,92,.2);padding:14px;margin-bottom:12px;position:relative;overflow:hidden;}
+.gps-bloc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--l),var(--sg));}
+.gps-lbl{font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;}
+.gps-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.gps-box{background:#f5f2ec;border-radius:8px;padding:8px;text-align:center;}
+.gps-box .k{font-family:'DM Mono',monospace;font-size:8px;color:var(--sf);display:block;margin-bottom:2px;}
+.gps-box .v{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--f);}
+.gps-acc{font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);text-align:center;margin-bottom:10px;}
+.btn-gps{width:100%;padding:13px;background:var(--f);color:#b8d4c0;border:none;border-radius:10px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-appearance:none;transition:background .15s;}
+.btn-gps:active{background:var(--m);}
+.btn-gps.got{background:#145a32;color:#a8d5a2;}
+.btn-manual-toggle{width:100%;margin-top:8px;padding:8px;background:transparent;border:1px solid rgba(74,140,92,.3);border-radius:8px;font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);cursor:pointer;}
+.manual-bloc{display:none;margin-top:10px;background:#f8f5f0;border-radius:10px;padding:12px;border:1.5px dashed rgba(74,140,92,.3);}
+.manual-lbl{font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase;}
+.manual-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.manual-row input{width:100%;padding:10px;border:1.5px solid rgba(74,140,92,.25);border-radius:8px;background:white;color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;outline:none;text-align:center;}
+.manual-row input:focus{border-color:var(--l);}
+.btn-use-manual{width:100%;margin-top:8px;padding:10px;background:var(--f);color:#b8d4c0;border:none;border-radius:8px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;}
+/* Form */
+.sec{font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);letter-spacing:.6px;text-transform:uppercase;margin:14px 0 8px;display:flex;align-items:center;gap:6px;}
+.sec::after{flex:1;height:1px;background:rgba(74,99,85,.15);content:'';}
+.fld{margin-bottom:10px;}
+.fld label{font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);display:block;margin-bottom:4px;}
+.fld input,.fld select,.fld textarea{width:100%;padding:12px 14px;border:1.5px solid rgba(74,140,92,.25);border-radius:10px;background:white;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;appearance:none;-webkit-appearance:none;transition:border-color .2s;}
+.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--l);background:#f5fff8;}
+.fld textarea{height:65px;resize:none;line-height:1.5;}
+.fld select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234a6355' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:6px 11px;border-radius:20px;font-family:'DM Mono',monospace;font-size:10px;border:1.5px solid rgba(74,140,92,.3);background:white;color:var(--sf);cursor:pointer;transition:all .15s;}
+.tag.sel{background:var(--f);color:var(--pl);border-color:var(--f);}
+.btn-send{width:100%;padding:17px;margin-top:16px;background:linear-gradient(135deg,var(--l),var(--m));color:white;border:none;border-radius:14px;font-family:'Syne',sans-serif;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 20px rgba(74,140,92,.35);-webkit-appearance:none;transition:transform .1s;}
+.btn-send:active{transform:scale(.97);}
+.btn-send:disabled{opacity:.5;pointer-events:none;}
+.toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--f);color:#b8d4c0;padding:10px 20px;border-radius:30px;font-family:'DM Mono',monospace;font-size:11px;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{background:#7f1d1d;color:#fca5a5;}
+.toast.ok{background:#145a32;color:#a8d5a2;}
+.hist-item{background:white;border-radius:10px;padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--l);display:flex;align-items:center;gap:10px;animation:si .3s ease;}
+@keyframes si{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.hist-dot{width:28px;height:28px;border-radius:8px;background:var(--f);color:var(--sg);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.hist-info{flex:1;min-width:0;}
+.hist-sp{font-size:12px;font-weight:500;color:var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hist-coords{font-family:'DM Mono',monospace;font-size:9px;color:var(--sf);margin-top:1px;}
+.hist-time{font-family:'DM Mono',monospace;font-size:9px;color:rgba(74,99,85,.5);flex-shrink:0;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <div class="logo">🌿</div>
+    <div class="hdr-text">
+      <h1>EcoGIS Live</h1>
+      <div class="sub">NATURE PLUS ONG · SAISIE TERRAIN</div>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="dot" id="dot"></div>
+    <div class="stxt" id="stxt">Connexion…</div>
+  </div>
+  <div class="card">
+
+    <!-- GPS -->
+    <div class="gps-bloc">
+      <div class="gps-lbl">📡 Ma position GPS</div>
+      <div class="gps-grid">
+        <div class="gps-box"><span class="k">LATITUDE</span><span class="v" id="latV">—</span></div>
+        <div class="gps-box"><span class="k">LONGITUDE</span><span class="v" id="lonV">—</span></div>
+      </div>
+      <div class="gps-acc" id="accV">Précision : —</div>
+      <button class="btn-gps" id="gpsBtn" onclick="getGPS()">
+        <span id="gpsIco">📍</span><span id="gpsTxt">Obtenir ma position GPS</span>
+      </button>
+      <button class="btn-manual-toggle" onclick="toggleManual()">✏️ Saisir les coordonnées manuellement</button>
+      <div class="manual-bloc" id="manBloc">
+        <div class="manual-lbl">📌 Saisie manuelle (degrés décimaux)</div>
+        <div class="manual-row">
+          <input type="number" id="mLat" placeholder="Lat: 10.123" step="0.000001" inputmode="decimal">
+          <input type="number" id="mLon" placeholder="Lon: 1.456" step="0.000001" inputmode="decimal">
+        </div>
+        <button class="btn-use-manual" onclick="useManual()">✔ Utiliser ces coordonnées</button>
+      </div>
+    </div>
+
+    <div class="sec">🔬 Observation</div>
+    <div class="fld">
+      <label>ESPÈCE / SUJET *</label>
+      <input type="text" id="fSp" placeholder="Lion, Éléphant, Braconniers…" autocomplete="off">
+    </div>
+    <div class="row2">
+      <div class="fld"><label>NOMBRE</label><input type="number" id="fCt" value="1" min="1" inputmode="numeric"></div>
+      <div class="fld"><label>STATUT</label>
+        <select id="fSt"><option value="Pending">Pending</option><option value="Verified">Verified</option><option value="Uncertain">Uncertain</option></select>
+      </div>
+    </div>
+    <div class="fld">
+      <label>CATÉGORIE</label>
+      <div class="tags">
+        <div class="tag sel" onclick="selTag(this,'Faune')">🦁 Faune</div>
+        <div class="tag" onclick="selTag(this,'Flore')">🌿 Flore</div>
+        <div class="tag" onclick="selTag(this,'Braconnage')">⚠️ Braconnage</div>
+        <div class="tag" onclick="selTag(this,'Infrastructure')">🏗️ Infra</div>
+        <div class="tag" onclick="selTag(this,'Eau')">💧 Eau</div>
+        <div class="tag" onclick="selTag(this,'Autre')">📌 Autre</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="fld"><label>SEXE / ÂGE</label>
+        <select id="fSx"><option value="">—</option><option>Mâle</option><option>Femelle</option><option>Juvénile</option><option>Adulte</option><option>Groupe</option><option>Inconnu</option></select>
+      </div>
+      <div class="fld"><label>COMPORTEMENT</label>
+        <select id="fBh"><option value="">—</option><option>Passage</option><option>Repos</option><option>Abreuvement</option><option>Alimentation</option><option>Fuite</option><option>Autre</option></select>
+      </div>
+    </div>
+    <div class="fld"><label>CAMÉRA / TRANSECT</label><input type="text" id="fCm" placeholder="CAM01, T-03…" autocomplete="off"></div>
+    <div class="fld"><label>NOTE</label><textarea id="fNo" placeholder="Description, météo, indice…"></textarea></div>
+
+    <button class="btn-send" id="sendBtn" onclick="sendPoint()">✈️  ENVOYER VERS QGIS</button>
+
+    <div class="sec" id="histSec" style="display:none;margin-top:14px">📋 Points envoyés</div>
+    <div id="histList"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+// WS URL automatique selon le domaine (fonctionne sur natureplusong.org ET sur Render)
+const WS_URL = (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws';
+const SECRET = 'pendjari2026';  // même valeur que ECOGIS_SECRET sur Render
+
+let ws=null, lat=null, lon=null, acc=null, tag='Faune', n=0, manOpen=false, rt=null;
+
+function connect(){
+  if(ws&&ws.readyState<2)return;
+  ws=new WebSocket(WS_URL);
+  ws.onopen=()=>ws.send(JSON.stringify({type:'hello',role:'mobile',secret:SECRET}));
+  ws.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);
+      if(d.ok&&d.role==='mobile'){setSt(true,'Connecté ✓');clearTimeout(rt);}
+      else if(d.ok===false){setSt(false,'Mot de passe incorrect');}
+      else if(d.ok===true){toast('✅ Reçu dans QGIS !','ok');}
+    }catch(e){}
+  };
+  ws.onclose=()=>{setSt(false,'Reconnexion…');rt=setTimeout(connect,3000);};
+  ws.onerror=()=>setSt(false,'Erreur réseau');
+}
+function setSt(on,txt){
+  document.getElementById('dot').className='dot'+(on?' on':'');
+  document.getElementById('stxt').textContent=txt;
+}
+
+function getGPS(){
+  const btn=document.getElementById('gpsBtn');
+  const ico=document.getElementById('gpsIco');
+  const txt=document.getElementById('gpsTxt');
+  if(!navigator.geolocation){toast('GPS non disponible — saisissez manuellement','err');return;}
+  btn.className='btn-gps';ico.textContent='⏳';txt.textContent='Localisation…';
+  navigator.geolocation.getCurrentPosition(
+    p=>{
+      lat=p.coords.latitude;lon=p.coords.longitude;acc=Math.round(p.coords.accuracy);
+      document.getElementById('latV').textContent=lat.toFixed(6);
+      document.getElementById('lonV').textContent=lon.toFixed(6);
+      document.getElementById('accV').textContent=`Précision : ±${acc} m`;
+      btn.className='btn-gps got';ico.textContent='✓';txt.textContent='Position obtenue — actualiser';
+    },
+    er=>{
+      const m={1:'Permission GPS refusée',2:'Signal GPS indisponible',3:'Délai dépassé'};
+      toast(m[er.code]||'Erreur GPS','err');
+      btn.className='btn-gps';ico.textContent='📍';txt.textContent='Réessayer GPS';
+    },
+    {enableHighAccuracy:true,timeout:20000,maximumAge:0}
+  );
+}
+
+function toggleManual(){
+  manOpen=!manOpen;
+  document.getElementById('manBloc').style.display=manOpen?'block':'none';
+}
+function useManual(){
+  const la=parseFloat(document.getElementById('mLat').value);
+  const lo=parseFloat(document.getElementById('mLon').value);
+  if(isNaN(la)||isNaN(lo)||Math.abs(la)>90||Math.abs(lo)>180){toast('Coordonnées invalides','err');return;}
+  lat=la;lon=lo;acc=null;
+  document.getElementById('latV').textContent=lat.toFixed(6);
+  document.getElementById('lonV').textContent=lon.toFixed(6);
+  document.getElementById('accV').textContent='Saisie manuelle';
+  document.getElementById('manBloc').style.display='none';
+  manOpen=false;
+  toast('✓ Coordonnées enregistrées','ok');
+}
+
+function selTag(el,v){document.querySelectorAll('.tag').forEach(t=>t.classList.remove('sel'));el.classList.add('sel');tag=v;}
+
+function sendPoint(){
+  if(lat===null){toast('📍 Position GPS requise','err');return;}
+  const sp=document.getElementById('fSp').value.trim();
+  if(!sp){toast('🔬 Espèce/sujet requis','err');document.getElementById('fSp').focus();return;}
+  if(!ws||ws.readyState!==1){toast('📡 Non connecté','err');return;}
+  const p={type:'observation',ts:new Date().toISOString(),lat,lon,accuracy:acc,species:sp,
+    count:parseInt(document.getElementById('fCt').value)||1,
+    status:document.getElementById('fSt').value,
+    category:tag,
+    sex:document.getElementById('fSx').value,
+    behavior:document.getElementById('fBh').value,
+    cam_id:document.getElementById('fCm').value.trim(),
+    note:document.getElementById('fNo').value.trim()};
+  ws.send(JSON.stringify(p));
+  n++;addHist(p,n);
+  ['fSp','fNo','fCm'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fCt').value='1';
+  toast('📤 Envoi en cours…','');
+}
+
+function addHist(p,i){
+  document.getElementById('histSec').style.display='flex';
+  const t=new Date(),hm=`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  const d=document.createElement('div');d.className='hist-item';
+  d.innerHTML=`<div class="hist-dot">${i}</div>
+    <div class="hist-info">
+      <div class="hist-sp">${p.species} × ${p.count} — ${p.category}</div>
+      <div class="hist-coords">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div>
+    </div><div class="hist-time">${hm}</div>`;
+  document.getElementById('histList').insertBefore(d,document.getElementById('histList').firstChild);
+}
+
+let toastT;
+function toast(msg,type){
+  const t=document.getElementById('toast');
+  clearTimeout(toastT);
+  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  toastT=setTimeout(()=>t.className='toast',3000);
+}
+
+connect();
+if(navigator.permissions)navigator.permissions.query({name:'geolocation'}).then(r=>{if(r.state==='granted')getGPS();});
+</script>
+</body>
+</html>
