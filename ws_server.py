@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-EcoGIS Live — Serveur Cloud v2 corrigé
-HTTP + WebSocket sur le même port (Render free tier).
-"""
+"""EcoGIS Live — Serveur Cloud v3 — corrigé"""
 import os, json, threading, time, logging
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
@@ -35,9 +32,7 @@ def status():
         n = len(points_store)
     return jsonify({
         'status': 'ok', 'server': 'EcoGIS Live',
-        'version': '3.1', 'points': n,
-        'qgis': len(qgis_clients),
-        'mobile': len(mobile_clients),
+        'version': '3.2', 'points': n,
         'ts': datetime.utcnow().isoformat()
     })
 
@@ -47,21 +42,20 @@ def get_points():
         return jsonify({'error': 'Unauthorized'}), 401
     with lock:
         pts = list(points_store)
-    since = request.args.get('since')
-    if since:
-        pts = [p for p in pts if p.get('ts','') > since]
     return jsonify({'points': pts, 'count': len(pts)})
 
 @sock.route('/ws')
 def ws_handler(ws):
+    # Déclarer les globales explicitement
+    global qgis_clients, mobile_clients, points_store
+
     role = None
     try:
-        # Identification — timeout généreux pour Render
+        # Identification
         try:
             raw = ws.receive(timeout=30)
         except Exception:
             return
-
         if not raw:
             return
 
@@ -71,47 +65,41 @@ def ws_handler(ws):
             ws.send(json.dumps({"ok": False, "error": "JSON invalide"}))
             return
 
-        # Vérifier type hello
         if msg.get('type') != 'hello':
-            ws.send(json.dumps({"ok": False, "error": "Envoyez d'abord un message hello"}))
+            ws.send(json.dumps({"ok": False, "error": "Message hello attendu"}))
             return
 
-        # Vérifier secret
-        client_secret = msg.get('secret', '')
-        if client_secret != SECRET:
-            log.warning(f"[WS] Secret invalide reçu: '{client_secret}' (attendu: '{SECRET}')")
+        client_secret = str(msg.get('secret', ''))
+        server_secret = str(SECRET)
+
+        if client_secret != server_secret:
+            log.warning(f"[WS] Secret invalide: recu='{client_secret}' attendu='{server_secret}'")
             ws.send(json.dumps({"ok": False, "error": "Mot de passe incorrect"}))
             return
 
-        role = msg.get('role', 'mobile')
-        ws.send(json.dumps({
-            "ok": True,
-            "role": role,
-            "msg": f"Connecté à EcoGIS Live ✓ ({role})"
-        }))
-        log.info(f"[WS] Nouveau {role} connecté")
+        role = str(msg.get('role', 'mobile'))
+        ws.send(json.dumps({"ok": True, "role": role, "msg": f"Connecte ({role})"}))
+        log.info(f"[WS] Connecte: {role}")
 
-        if role == 'qgis':
-            with lock:
+        # Enregistrer le client
+        with lock:
+            if role == 'qgis':
                 qgis_clients.add(ws)
                 existing = list(points_store)
-            if existing:
-                ws.send(json.dumps({
-                    "type": "bulk",
-                    "points": existing,
-                    "count": len(existing)
-                }))
-        else:
-            with lock:
+            else:
                 mobile_clients.add(ws)
+                existing = []
 
-        # Boucle lecture
+        # Envoyer les points existants au plugin QGIS
+        if existing:
+            ws.send(json.dumps({"type": "bulk", "points": existing, "count": len(existing)}))
+
+        # Boucle de lecture
         while True:
             try:
                 raw = ws.receive(timeout=120)
             except Exception:
                 break
-
             if raw is None:
                 break
 
@@ -127,8 +115,9 @@ def ws_handler(ws):
                     points_store.append(data)
                     n = len(points_store)
                 ws.send(json.dumps({"ok": True, "id": n}))
-                log.info(f"[OBS] #{n} {data.get('species','?')} @ {data.get('lat')},{data.get('lon')}")
+                log.info(f"[OBS] #{n} {data.get('species','?')}")
 
+                # Diffuser à QGIS
                 with lock:
                     qgis_copy = set(qgis_clients)
                 payload = json.dumps({"type": "observation", **data})
@@ -143,25 +132,20 @@ def ws_handler(ws):
                         qgis_clients -= dead
 
             elif role == 'qgis':
-                cmd = data.get('cmd')
-                if cmd == 'ping':
+                if data.get('cmd') == 'ping':
                     ws.send(json.dumps({"type": "pong", "ts": time.time()}))
-                elif cmd == 'clear' and data.get('secret') == SECRET:
-                    with lock:
-                        points_store.clear()
-                    ws.send(json.dumps({"ok": True, "cmd": "clear"}))
 
     except Exception as e:
         log.warning(f"[WS] Erreur ({role}): {e}")
     finally:
-        if role == 'qgis':
-            with lock:
+        # Nettoyage — utiliser global explicitement
+        with lock:
+            if role == 'qgis':
                 qgis_clients.discard(ws)
-        elif role == 'mobile':
-            with lock:
+            elif role == 'mobile':
                 mobile_clients.discard(ws)
-        log.info(f"[WS] Déconnexion: {role}")
+        log.info(f"[WS] Deconnexion: {role}")
 
 if __name__ == '__main__':
-    log.info(f"EcoGIS Live v3.1 sur port {PORT} — SECRET={'*'*len(SECRET)}")
+    log.info(f"EcoGIS Live v3.2 port={PORT}")
     app.run(host='0.0.0.0', port=PORT, debug=False)
